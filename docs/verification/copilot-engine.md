@@ -29,7 +29,11 @@ a model switch between turns, a `session/request_permission` shown as an
 approval card and answered with the person's choice, the fallback to Auto with a notice when the plan
 no longer offers a saved model, and a missing login reported as a sign-in step.
 They also check that `COPILOT_ALLOW_ALL` and a server-wide `GITHUB_TOKEN` never
-reach the child, while a token set on the engine itself does.
+reach the child, while a token set on the engine itself does. A turn's
+`session/new` hands OpenMausBot's own MCP servers (the agents proxy and the
+harness kinds the HTTP path already serves) as http entries of this server,
+because Copilot CLI 1.0.105 rejects a stdio MCP server. A person's own server
+and the Composio connector stay on stdio.
 
 The end-to-end test launches an isolated server with `launchVerificationServer`,
 which uses a disposable home, data directory and port pair, and fake engines
