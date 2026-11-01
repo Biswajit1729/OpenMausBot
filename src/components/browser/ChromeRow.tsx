@@ -64,6 +64,8 @@ export const ChromeRow = forwardRef<HTMLInputElement, {
   fullscreen: boolean;
   /** Maximized: the panel overlays the whole window, instead of its usual share of it. */
   maximized: boolean;
+  /** Leave room on the left of the top row for the macOS traffic lights. */
+  insetLeft?: boolean;
   menu: ReactNode;
   onCommand: (command: { type: "navigate"; url: string } | { type: "history"; delta: -1 | 1 } | { type: "reload" } | { type: "tabSelect"; tabId: string } | { type: "tabClose"; tabId: string } | { type: "tabNew" }) => void;
   onAddress: (text: string) => void;
@@ -83,7 +85,7 @@ export const ChromeRow = forwardRef<HTMLInputElement, {
   const shown = nav.url === "about:blank" ? "" : nav.url;
   return (
     <div className="shrink-0 border-b border-hairline/40">
-      <div className="flex min-h-10 items-center gap-1 px-2 pt-1">
+      <div className={`flex min-h-10 items-center gap-1 px-2 pt-1${props.insetLeft ? " pl-[86px]" : ""}`}>
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label="Browser tabs">
           {tabs.length ? tabs.map((tab) => (
             <div key={tab.tabId} className={`flex max-w-52 shrink-0 items-center gap-1 rounded-xl px-1 text-[12px] ${tab.active ? "bg-inset text-ink" : "text-ink-secondary"}`}>

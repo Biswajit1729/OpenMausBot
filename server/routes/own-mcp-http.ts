@@ -49,7 +49,7 @@ export async function ownMcpHttpRoutes({ req, res, path, method, json, readBody 
         res.end();
         return;
       }
-      json(res, 200, Array.isArray(body) ? replies : replies[0]);
+      return json(res, 200, Array.isArray(body) ? replies : replies[0]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return json(res, message === "unauthorized" ? 401 : message === "unknown connector env" ? 400 : 502, { error: message });
