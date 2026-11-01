@@ -214,6 +214,8 @@ const SUPPORT: AcpSupport = {
     return offered.includes(AUTO) ? AUTO : null;
   },
   restartOnMcpChange: true,
+  // Copilot CLI 1.0.105 rejects a stdio MCP server (`Rejecting non-http/sse MCP server`).
+  ownMcpOverHttp: true,
   pickAuthMethod: () => null,
   authFailure: "continue",
   isAuthenticated: (env, config) => copilotSignedIn(env, config),
