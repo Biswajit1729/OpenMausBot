@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { usePageVisible } from "@/lib/page-visible";
 import { api, useStore, type Bot } from "@/state/store";
 import { BrowserProfilesManager } from "./BrowserProfilesManager";
+import { useCaptionChrome, useDesktopCapabilities } from "./DesktopCapabilities";
 import { ChromeRow, type BrowserNav, type BrowserTab } from "./browser/ChromeRow";
 import { MoreMenu } from "./browser/MoreMenu";
 import { PasskeyNotice } from "./browser/PasskeyNotice";
@@ -63,6 +64,8 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
   const floating = useBrowserPictureInPicture();
   const pageVisible = usePageVisible();
   const panel = useRef<HTMLDivElement>(null);
+  const { noDragStyle } = useCaptionChrome();
+  const macInset = useDesktopCapabilities().capabilities.windowChrome === "mac-inset";
   const address = useRef<HTMLInputElement>(null);
   const surface = useRef<StreamSurfaceHandle>(null);
   const profilesDialog = useRef<HTMLDialogElement>(null);
@@ -238,6 +241,20 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
     return () => window.removeEventListener("keydown", onKey, true);
   }, [maximized]);
 
+  // In full screen the page surface forwards plain Escape to the remote page, so nothing would leave full screen.
+  // Capture on window runs before the surface's own handler; stopping it there keeps the key out of the page.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [fullscreen]);
+
   const restart = () => {
     if (!window.confirm(t("browser.panel.confirmRestart"))) return;
     setError("");
@@ -268,7 +285,7 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
   const passkeyWall = passkeyWallAt(nav.url);
   return <div ref={panel} className={maximized
     ? "fixed inset-0 z-50 flex flex-col overflow-hidden bg-card text-ink"
-    : "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-hairline/40 bg-card text-ink"} data-browser-transport={stream ? "stream" : "live"}>
+    : "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-hairline/40 bg-card text-ink"} style={maximized || fullscreen ? noDragStyle : undefined} data-browser-transport={stream ? "stream" : "live"}>
     <ChromeRow
       ref={address}
       botName={bot.name}
@@ -282,6 +299,7 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
       profileName={profileName}
       fullscreen={fullscreen}
       maximized={maximized}
+      insetLeft={maximized && !fullscreen && macInset}
       onCommand={interact}
       onAddress={(text) => {
         const url = resolveAddressBarInput(text);
