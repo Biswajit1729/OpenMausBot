@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ensureDirs, instanceConfigs } from "../../config.ts";
 import type { ProviderInstance } from "../../contracts.ts";
-import { AGENTS_ENV_HEADER } from "../../routes/own-mcp-http-path.ts";
+import { AGENTS_ENV_HEADER, CONNECTOR_ENV_HEADER } from "../../routes/own-mcp-http-path.ts";
+import { registerConnectorEnv } from "../../routes/own-mcp-connectors.ts";
 import { recordEvents, type EventRecorder } from "../../testing/events.ts";
 import { removeTempDir } from "../../testing/cleanup.ts";
 import { BUILT_IN_DRIVERS } from "../builtIn.ts";
@@ -244,6 +245,11 @@ describe("GitHub Copilot ACP driver", () => {
   it("sends OpenMausBot's own MCP servers on session/new as http, and leaves a person's server on stdio", async () => {
     const { instance, recorder } = await create();
     const harness = "http://127.0.0.1:8799";
+    const connectorEnv = {
+      OMB_CONNECTOR_UPSTREAM_URL: `${harness}/api/internal/connectors/mcp`,
+      OMB_HARNESS_URL: harness,
+      OMB_CONNECTOR_TOKEN: "connector-capability",
+    };
     const { turnId } = await instance.adapter.sendTurn({
       threadId: "copilot-mcp", text: "hello", model: "auto", approvalMode: "ask",
       integrations: {
@@ -254,7 +260,7 @@ describe("GitHub Copilot ACP driver", () => {
         data: { command: process.execPath, args: ["/app/dist-server/harness-mcp-proxy.js", "data"],
           env: { OMB_HARNESS_URL: harness, OMB_MCP_TOKEN_DATA: "data-capability" } },
         composio: { command: process.execPath, args: ["/tmp/connector-proxy.js"],
-          env: { OMB_CONNECTOR_UPSTREAM_URL: `${harness}/api/internal/connectors/mcp` } },
+          env: connectorEnv },
         custom: { notes: { command: process.execPath, args: ["/tmp/notes-mcp.js"], env: {} } },
       },
     });
@@ -266,8 +272,10 @@ describe("GitHub Copilot ACP driver", () => {
         { name: "authorization", value: "Bearer agents-capability" },
         { name: AGENTS_ENV_HEADER, value: agentsEnv },
       ] },
-      { name: "composio", command: process.execPath, args: ["/tmp/connector-proxy.js"],
-        env: [{ name: "OMB_CONNECTOR_UPSTREAM_URL", value: `${harness}/api/internal/connectors/mcp` }] },
+      { type: "http", name: "composio", url: `${harness}/api/internal/mcp-http/connectors`, headers: [
+        { name: "authorization", value: "Bearer connector-capability" },
+        { name: CONNECTOR_ENV_HEADER, value: registerConnectorEnv(connectorEnv) },
+      ] },
       { type: "http", name: "browser", url: `${harness}/api/internal/mcp-http/browser`, headers: [{ name: "authorization", value: "Bearer browser-capability" }] },
       { type: "http", name: "data", url: `${harness}/api/internal/mcp-http/data`, headers: [{ name: "authorization", value: "Bearer data-capability" }] },
       { name: "notes", command: process.execPath, args: ["/tmp/notes-mcp.js"], env: [] },

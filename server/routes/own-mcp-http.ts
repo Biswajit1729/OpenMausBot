@@ -11,7 +11,8 @@ import { harnessMcpRequest, MAX_INPUT_BYTES, parseHarnessMcpKind } from "../harn
 import { parseToolLimit, TOOL_LIMIT_HEADER } from "../tool-count-limit.ts";
 import { PASS, type RouteContext, type RouteHandler } from "./table.ts";
 
-import { AGENTS_ENV_HEADER, OWN_MCP_HTTP_PATH } from "./own-mcp-http-path.ts";
+import { connectorMcpReply } from "./own-mcp-connectors.ts";
+import { AGENTS_ENV_HEADER, CONNECTOR_ENV_HEADER, OWN_MCP_HTTP_PATH } from "./own-mcp-http-path.ts";
 
 function agentsEnv(headers: IncomingHttpHeaders, token: string, harness: string): NodeJS.ProcessEnv {
   let settings: Record<string, unknown> = {};
@@ -28,6 +29,32 @@ function agentsEnv(headers: IncomingHttpHeaders, token: string, harness: string)
 export async function ownMcpHttpRoutes({ req, res, path, method, json, readBody }: RouteContext): ReturnType<RouteHandler> {
   if (!path.startsWith(OWN_MCP_HTTP_PATH)) return PASS;
   const name = path.slice(OWN_MCP_HTTP_PATH.length);
+  if (name === "connectors") {
+    if (method !== "POST") {
+      res.writeHead(405, { allow: "POST" });
+      res.end();
+      return;
+    }
+    const token = /^Bearer\s+(.+)$/i.exec(String(req.headers.authorization ?? ""))?.[1];
+    if (!token) return json(res, 401, { error: "unauthorized" });
+    const envHeader = req.headers[CONNECTOR_ENV_HEADER];
+    if (typeof envHeader !== "string" || !/^[0-9a-f]{64}$/.test(envHeader)) return json(res, 400, { error: "missing connector env" });
+    try {
+      const body = await readBody(req, MAX_INPUT_BYTES);
+      const frames = Array.isArray(body) ? body : [body];
+      const replies = (await Promise.all(frames.map((frame) =>
+        connectorMcpReply(envHeader, token, frame as Record<string, unknown>)))).filter((reply) => reply !== undefined);
+      if (!replies.length) {
+        res.writeHead(202);
+        res.end();
+        return;
+      }
+      json(res, 200, Array.isArray(body) ? replies : replies[0]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return json(res, message === "unauthorized" ? 401 : message === "unknown connector env" ? 400 : 502, { error: message });
+    }
+  }
   const kind = name === "agents" ? "agents" : parseHarnessMcpKind(name);
   if (!kind) return json(res, 404, { error: "no such MCP server" });
   // No server-sent stream and no session to end: a client falls back to plain request and response.
