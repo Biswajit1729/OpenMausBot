@@ -4,7 +4,8 @@ import type { SendTurnInput } from "../contracts.ts";
 import { canUseMcpServer } from "../../shared/tool-scope.ts";
 import { harnessMcpTokenEnv } from "../harness-mcp-token.ts";
 import { appMountFor, gateServer, mcpStdioServer, type AppMount } from "../mcp-gate-config.ts";
-import { AGENTS_ENV_HEADER, OWN_MCP_HTTP_PATH } from "../routes/own-mcp-http-path.ts";
+import { AGENTS_ENV_HEADER, CONNECTOR_ENV_HEADER, OWN_MCP_HTTP_PATH } from "../routes/own-mcp-http-path.ts";
+import { registerConnectorEnv } from "../routes/own-mcp-connectors.ts";
 import { TOOL_SCHEMA_PROFILE_ENV, toolSchemaProfileFor, type ToolSchemaProfileId } from "../tool-schema-profile.ts";
 import { AGENTS_MCP_ENV } from "./agents-mcp-env.ts";
 import { OWN_APPS_SERVER } from "../../shared/own-apps.ts";
@@ -91,8 +92,14 @@ const HARNESS_KINDS = ["browser", "computer", "data", "highlevel", "device"] as 
 export function ownMcpOverHttp(server: TurnStdioMcpServer): { url: string; headers: Record<string, string> } | null {
   const harness = server.env.OMB_HARNESS_URL;
   if (!harness || !/^http:\/\/127\.0\.0\.1:\d+$/.test(harness)) return null;
-  const script = server.args.findIndex((arg) => /(?:^|[\\/])(?:harness-mcp-proxy|agents-proxy)\.[jt]s$/.test(arg));
+  const script = server.args.findIndex((arg) => /(?:^|[\\/])(?:harness-mcp-proxy|agents-proxy|connector-proxy)\.[jt]s$/.test(arg));
   if (script < 0) return null;
+  if (/connector-proxy\.[jt]s$/.test(server.args[script]!)) {
+    const token = server.env.OMB_CONNECTOR_TOKEN ?? server.env.OMB_COMMS_TOKEN;
+    if (!token) return null;
+    return { url: `${harness}${OWN_MCP_HTTP_PATH}connectors`, headers: { authorization: `Bearer ${token}`,
+      [CONNECTOR_ENV_HEADER]: registerConnectorEnv(server.env) } };
+  }
   if (/agents-proxy\.[jt]s$/.test(server.args[script]!)) {
     const token = server.env.OMB_COMMS_TOKEN;
     if (!token) return null;
